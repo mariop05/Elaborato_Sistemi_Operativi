@@ -1,7 +1,10 @@
 #include <stdio.h>
 #include "err_exit.h"
+#include "semaphore.h"
+#include "shared_memory.h"
 
 char *username;
+
 
 int main(int argc, char const *argv[])
 {
@@ -10,5 +13,7 @@ int main(int argc, char const *argv[])
 
     *username = argv[1];
     
+    
+
     return 0;
 }
