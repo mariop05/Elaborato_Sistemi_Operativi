@@ -1,8 +1,5 @@
-#pragma once
 #ifndef _MATRIX_HH
 #define _MATRIX_HH
-
-#include <stdbool.h> 
 
 typedef struct
 {
@@ -21,7 +18,7 @@ void printmatrix(matrix *mymatrix);
 int insert(matrix *mymatrix, char what, int where);
 
 //check the win
-bool checkwin(matrix *mymatrix, bool checkdiagonal);
+int checkwin(matrix *mymatrix, int checkdiagonal/*0 if not diadonal, 1 if yes*/);
 
 
 #endif

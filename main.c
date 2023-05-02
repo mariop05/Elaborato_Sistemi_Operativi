@@ -1,42 +1,49 @@
 #include <stdio.h>
+#include "matrix.h"
 #define COLUMN 5
 #define ROW 5
 int main(int argc, char *argv[]) {
-    int row, column;
-    char matrice[2*ROW + 1][2*COLUMN + 1];
-    char carattere = *argv[1];
-    if(argc != 2)
-        return -1;
+    
+    matrix mymatrix;
 
-    printf("carattere: %c\n", carattere);
-    if(carattere != 'X')
-        return -1;
+    mymatrix.heigth = ROW;
+    mymatrix.length = COLUMN;
 
-
-    /* riga */
-    for(row = 0; row < (2 * ROW + 1); row++){
-        /* colonna */
-        for (column = 0; column < (2 * COLUMN + 1); column++) {
-            if(row % 2 == 0){
-                matrice[row][column] = '-';
-            }
-            else if(row % 2 != 0 && column % 2 == 0){
-                matrice[row][column] = '|';
-            }
-            else if(row % 2 != 0 && column % 2 != 0){
-                matrice[row][column] = ' ';
-            }
+    for(int row = 0; row < ROW; row ++){
+        for (int column = 0; column < COLUMN; column++){
+            mymatrix.table[row][column] = ' ';
         }
     }
 
-    matrice[1][1] = 'X';
+    int turn = 0;
+    char symbol;
+    int insertcol;
+    while (1)
+    {
+        if(turn % 2 == 0)
+            symbol = 'X';
+        else
+            symbol = 'O';
 
-    /* stampo la matrice */
-    for(row = 0; row < (2 * ROW + 1); row++){
-        for (column = 0; column < (2 * COLUMN + 1); column++) {
-            printf("%c", matrice[row][column]);
+        printf("Inserisci la mossa %c: ", symbol);
+
+        do{
+            scanf("%d", &insertcol);
         }
-        printf("\n");
+        while(insert(&mymatrix, symbol, insertcol) != 0);
+        
 
+        printmatrix(&mymatrix);
+
+        if(checkwin(&mymatrix, 1)){
+            printf("Complimenti %c hai vinto!!\n", symbol);
+            return 0;
+        }
+
+        turn++;
     }
+    
+    
+
+    printmatrix(&mymatrix);
 }

@@ -28,7 +28,7 @@ int main(int argc, char const *argv[])
     if (argc != 2)
         ErrExit("Sintassi sbagliata\nclient nomeutente");
 
-    *username = argv[1];
+    char *username = argv[1];
     
     int semid = semget(SEM_KEY, 3 , S_IRUSR | S_IWUSR);
 
