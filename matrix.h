@@ -17,9 +17,11 @@ typedef struct
 void printmatrix(matrix *mymatrix);
 
 //insert in a specified row(where) a specified character(what)
+//returns -1 if it fails
 int insert(matrix *mymatrix, char what, int where);
 
 //check the win
 bool checkwin(matrix *mymatrix, bool checkdiagonal);
+
 
 #endif
