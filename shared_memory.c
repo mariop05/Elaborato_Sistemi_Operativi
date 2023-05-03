@@ -17,7 +17,7 @@
 }
 
 int take_shared_memory(key_t shmKey, size_t size) {
-    int shmid = shmget(shmKey, size, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
+    int shmid = shmget(shmKey, size, S_IRUSR | S_IWUSR);
     if (shmid == -1)
         ErrExit("shmget failed");
 

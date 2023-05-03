@@ -15,15 +15,15 @@
 #include "semaphore.h"
 #include <unistd.h>
 #include "shared_memory.h"
-#include "utils.h"
+#include "fifo.h"
 
 #define SEM_KEY 10
 #define SHM_KEY 11
 #define MSQ_KEY 12
 #define ALARM_TIME 30
 
-const char *fifoclient2serverpath = "./client2server";
-const char *fifosever2clientpath = "./server2client";
+char *fifoclient2serverpath = "./client2server";
+char *fifosever2clientpath = "./server2client";
 
 const size_t msgsize = sizeof(struct mymsg) - sizeof(long);
 
@@ -52,10 +52,6 @@ void exitSequence(){
 
     if (msgctl(msqid, IPC_RMID, NULL) == -1)
         ErrExit("rimozione messaggi fallita");
-
-    if (close(fifoclient2serverfd) == -1 || close(fifoserver2clientfd) == -1){
-        ErrExit("rimozione fifo fallita");
-    }
 
     exit(0);
 
@@ -166,16 +162,13 @@ int main(int argc, char const *argv[])
     shmid = take_shared_memory(SHM_KEY, sizeof(matrix));
     mymatrix = get_shared_memory(shmid, 0);
 
+    //apro la fifo server
+    fifoserver2clientfd = openFifo(fifosever2clientpath, O_RDONLY);
+
     //apro la fifo client
-    fifoclient2serverfd = open(fifoclient2serverpath, O_WRONLY);
-    if (fifoclient2serverfd == -1)
-        ErrExit("Errore in apertura fifoclient2server");
+    fifoclient2serverfd = openFifo(fifoclient2serverpath, O_WRONLY);
 
-    fifoserver2clientfd = open(fifosever2clientpath, O_RDONLY);
-    if (fifoserver2clientfd == -1)
-        ErrExit("Errore in apertura fifoserver2client");
-
-    int br = read(fifoserver2clientfd, &buffer, sizeof(buffer));
+    int br = read(fifoserver2clientfd, buffer, sizeof(buffer));
 
     if (br == -1)
         ErrExit("read fifo server2client fallita");
@@ -195,16 +188,16 @@ int main(int argc, char const *argv[])
     if (numplayer == 1 && computer == 0)
         printf("In attesa di player 2");
 
-    char charpid[10];
-    itoa(getpid(), charpid);
+    sprintf(buffer, "%c%d", computer + 48, getpid());
 
-    sprintf(buffer, "%c%s", computer+48, charpid);
-
-    br = write(fifoclient2serverfd, &buffer, sizeof(buffer));
+    br = write(fifoclient2serverfd, buffer, sizeof(buffer));
     if (br == -1)
         ErrExit("write fifo client2server fallita");
     else if (br != strlen(buffer))
         ErrExit("write client2server sbagliata");
+
+    closeFifo(fifoclient2serverfd);
+    closeFifo(fifoserver2clientfd);
     
     //entro nel loop del gioco
     while(1)
