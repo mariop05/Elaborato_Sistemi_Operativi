@@ -1,14 +1,15 @@
 #include <stdio.h>
+#include <sys/msg.h>
 #include <sys/sem.h>
 #include <sys/ipc.h>
 #include <sys/stat.h>
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/msg.h>
 #include <fcntl.h>
 #include <string.h>
 #include <stdlib.h>
+#include "message_queue.h"
 #include "err_exit.h"
 #include "matrix.h"
 #include "semaphore.h"
@@ -27,6 +28,8 @@ const char *fifosever2clientpath = "./server2client";
 char *username; //the client username
 char mysymbol;
 matrix *mymatrix; //the client matrix pointer
+struct mymsg msg;
+size_t msgsize = sizeof(struct mymsg) - sizeof(long);
 pid_t serverpid; //pid of server
 int numplayer; //indica se si tratta di player 1 o 2 (0,1)
 int computer = 0;
@@ -50,24 +53,70 @@ void exitSequence(){
         ErrExit("rimozione fifo fallita");
     }
 
-
-
     exit(0);
 
 }
 
 void sigIntHandler(int sig) {
+
     printf("CTRL-C rilevato!\n");
-    kill(serverpid, SIGUSR1);
+
+    if(kill(serverpid, SIGUSR1) == -1) 
+        ErrExit("Impossibile mandare il segnale al server");
+
+    msg.mtype = 1;
+
+    sprintf(msg.mtext, "%dctrlc", numplayer);
+
+    if(msgsnd(msqid, &msg, msgsize, 0) == 0)
+        ErrExit("Impossibile inviare il messaggio msgsnd");
+
     exitSequence();
 }
 
 void sigUsrHandler(int sig){
 
+    if (msgrcv(msqid, &msg, msgsize, 1, 0) == -1)
+        ErrExit("Impossibile ricevere il messaggio msgrcv");
+
+    char *message = msg.mtext;
+
+    if(strcmp(&message[1], "win") == 0){
+
+        if(message[0] - 48 == numplayer)
+            printf("\nComplimenti, HAI VINTO!!!\n");
+        else
+            printf("\nMi dispiace HAI PERSO :(\n");
+    }
+
+    else if(strcmp(message, "ctrlc") == 0){
+
+        printf("\nIl server ha abbandonato la partita\n");
+        exitSequence();
+    }
+
+    else if(strcmp(message, "winforctrlc") == 0){
+
+        printf("\nHAI VINTO per abbandono dell' avversario\n");
+        exitSequence();
+    }
+
+    else if(strcmp(message, "parity") == 0){
+
+        printf("\nPARITA\n'");
+        exitSequence();
+    }
+
+    else {
+
+        printf("\nAttenzione: messaggio non gestito\n");
+    }
+
 }
 
 void sigAlaHandler(int sig){
-
+    
+    
 }
 
 int main(int argc, char const *argv[])
