@@ -16,6 +16,14 @@
     return shmid;
 }
 
+int take_shared_memory(key_t shmKey, size_t size) {
+    int shmid = shmget(shmKey, size, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
+    if (shmid == -1)
+        ErrExit("shmget failed");
+
+    return shmid;
+}
+
 void *get_shared_memory(int shmid, int shmflg) {
     // attach the shared memory
     void *ptr_sh = shmat(shmid, NULL, shmflg);

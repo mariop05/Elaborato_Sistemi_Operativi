@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/msg.h>
 #include <fcntl.h>
 #include <string.h>
 #include <stdlib.h>
@@ -18,14 +19,16 @@
 
 #define SEM_KEY 10
 #define SHM_KEY 11
+#define MSQ_KEY 12
 
 const char *fifoclient2serverpath = "./client2server";
 const char *fifosever2clientpath = "./server2client";
 
 char *username; //the client username
-matrix mymatrix; //the client matrix
+char mysymbol;
+matrix *mymatrix; //the client matrix pointer
 pid_t serverpid; //pid of server
-int numplayer; //indica se si tratta di player 1 o 2
+int numplayer; //indica se si tratta di player 1 o 2 (0,1)
 int computer = 0;
 
 int semid;
@@ -33,43 +36,77 @@ int shmid;
 int fifoserver2clientfd;
 int fifoclient2serverfd;
 char buffer[100];
+int msqid;
 
-void sigIntHandler(int sig){
-    printf("The signal ctrl-c was caught!\n");
+void exitSequence(){
+
+    free_shared_memory(mymatrix);
+    
+    if (semctl(semid, 0, IPC_RMID) == -1){
+        ErrExit("rimozione semafori fallita");
+    }
+
+    if (close(fifoclient2serverfd) == -1 || close(fifoserver2clientfd) == -1){
+        ErrExit("rimozione fifo fallita");
+    }
+
+
+
+    exit(0);
+
+}
+
+void sigIntHandler(int sig) {
+    printf("CTRL-C rilevato!\n");
+    kill(serverpid, SIGUSR1);
+    exitSequence();
 }
 
 void sigUsrHandler(int sig){
-    
+
+}
+
+void sigAlaHandler(int sig){
+
 }
 
 int main(int argc, char const *argv[])
 {
-    if (argc != 2)
-        ErrExit("Sintassi sbagliata\nLa sintassi corretta è: ./client nomegiocatore\n");
+    if (argc == 2)
+        username = (char *)argv[1];
+        
 
-    if (strcmp(argv[1], "-c") == 0){
+    else if (argc == 3 && strcmp(argv[2], "*") == 0){
+        username = (char *)argv[1];
         computer = 1;
     }
 
-    else{
-        username = (char *)argv[1];
-    }
+    else
+       ErrExit("Sintassi sbagliata\nLa sintassi corretta è: ./client nomegiocatore\nPer giocare contro il computer è necessario inserire * come secondo parametro");
     
     //blocco ctrl-c per rimuovere i semafori, la memoria condivisa e la fifo
     //blocco sigusr1 che mi comunica dal server se ho vinto il gioco, se ho perso
 
     if (signal(SIGTERM, sigIntHandler) == SIG_ERR ||
-        signal(SIGUSR1, sigUsrHandler) == SIG_ERR)
+        signal(SIGUSR1, sigUsrHandler) == SIG_ERR ||
+        signal(SIGALRM, sigAlaHandler) == SIG_ERR)
         ErrExit("change signal handler failed");
 
     //apro il semaforo creato dal master
-    semid = semget(SEM_KEY, 3 , S_IRUSR | S_IWUSR);
+    semid = semget(SEM_KEY, 2 , S_IRUSR | S_IWUSR);
+
+    if (semid == -1)
+        ErrExit("Errore nella configurazione dei semafori (forse il server non è in esecuzione?)");
+
+    //apro la coda di messaggi creata dal master
+    msqid = msgget(MSQ_KEY, S_IRUSR | S_IWUSR);
 
     if (semid == -1)
         ErrExit("Errore nella configurazione dei semafori (forse il server non è in esecuzione?)");
 
     //mi prendo la memoria condivisa
-    shmid = alloc_shared_memory(SHM_KEY, sizeof(mymatrix));
+    shmid = take_shared_memory(SHM_KEY, sizeof(matrix));
+    mymatrix = get_shared_memory(shmid, 0);
 
     //apro la fifo client
     fifoclient2serverfd = open(fifoclient2serverpath, O_WRONLY);
@@ -82,14 +119,18 @@ int main(int argc, char const *argv[])
 
     int br = read(fifoserver2clientfd, &buffer, sizeof(buffer));
     if (br == -1)
-        ErrExit("read fifoserver2clientfd fallita");
+        ErrExit("read fifo server2client fallita");
     else if (br != strlen(buffer))
-        ErrExit("read fifoserver2clientfd sbagliata");
+        ErrExit("read fifo server2client sbagliata");
 
+    // mi permette di capire se sono player 1 o 2
+    numplayer = buffer[0] - 48;
 
-    serverpid = (pid_t) atoi(&buffer[1]);
+    // memorizzo il simbolo del giocatore
+    mysymbol = buffer[1];
 
-    numplayer = buffer[0] - 48; 
+    // memorizzo il pid del server
+    serverpid = (pid_t) atoi(&buffer[2]);
 
     if (numplayer == 1)
         printf("In attesa di player 2");
@@ -97,8 +138,30 @@ int main(int argc, char const *argv[])
     itoa(getpid(), buffer);
 
     br = write(fifoclient2serverfd, &buffer, sizeof(buffer));
+    if (br == -1)
+        ErrExit("write fifo client2server fallita");
+    else if (br != strlen(buffer))
+        ErrExit("write client2server sbagliata");
+    
+    //entro nel loop del gioco
+    while(1)
+    {
+        // aspetto che il server mi sblocchi
+        semOp(semid, numplayer, -1);
 
-    semOp(semid, 0, 1);
+        printmatrix(mymatrix);
+        
+        int column;
+        printf("Inserisci la mossa\n");
+
+        do{
+            scanf("%d", &column);
+        }
+        while(insert(mymatrix, mysymbol, column));
+
+        semOp(semid, numplayer, -1);
+    }
+    
     
     return 0;
 }
