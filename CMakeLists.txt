@@ -3,4 +3,4 @@ project(Progetto_Sistemi_Operativi C)
 
 set(CMAKE_C_STANDARD 11)
 
-add_executable(Progetto_Sistemi_Operativi client.c matrix.c err_exit.c message_queue.c semaphore.c shared_memory.c utils.c)
+add_executable(client client.c matrix.c err_exit.c message_queue.c semaphore.c shared_memory.c utils.c)
