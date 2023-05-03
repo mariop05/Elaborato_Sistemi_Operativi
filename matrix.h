@@ -19,6 +19,9 @@ void printmatrix(matrix *mymatrix);
 int insert(matrix *mymatrix, char what, int where);
 
 //check the win
+//0 if no
+//1 if win
+//2 if parity
 int checkwin(matrix *mymatrix, int checkdiagonal/*0 if not diadonal, 1 if yes*/);
 
 

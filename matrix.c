@@ -53,6 +53,7 @@ int insert(matrix *mymatrix, char what, int where)
 int checkwin(matrix *mymatrix, int checkdiagonal)
 {
     int row, column;
+    int parity = 0;
     char symbol;
 
     for(row = 0; row < mymatrix->heigth; row++){
@@ -116,6 +117,16 @@ int checkwin(matrix *mymatrix, int checkdiagonal)
             }
         }
     }
+
+    for (column = 0; column < mymatrix->length; column++)
+        if (mymatrix->table[0][column] != ' ')
+            parity++;
+
+    if (parity == mymatrix->length)
+    {
+        return(2);
+    }
+    
 
     return(0);
 }
