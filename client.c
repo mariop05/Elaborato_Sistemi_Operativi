@@ -25,6 +25,8 @@
 const char *fifoclient2serverpath = "./client2server";
 const char *fifosever2clientpath = "./server2client";
 
+const size_t msgsize = sizeof(struct mymsg) - sizeof(long);
+
 char *username; //the client username
 char mysymbol;
 matrix *mymatrix; //the client matrix pointer

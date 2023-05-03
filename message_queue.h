@@ -9,6 +9,4 @@ struct mymsg {
     char mtext[100]; /* Message body */
 };
 
-const size_t msgsize = sizeof(struct mymsg) - sizeof(long);
-
 #endif
