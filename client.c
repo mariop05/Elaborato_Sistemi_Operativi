@@ -49,6 +49,9 @@ void exitSequence(){
         ErrExit("rimozione semafori fallita");
     }
 
+    if (msgctl(msqid, IPC_RMID, NULL) == -1)
+        ErrExit("rimozione messaggi fallita");
+
     if (close(fifoclient2serverfd) == -1 || close(fifoserver2clientfd) == -1){
         ErrExit("rimozione fifo fallita");
     }
@@ -116,7 +119,7 @@ void sigUsrHandler(int sig){
 
 void sigAlaHandler(int sig){
     
-    
+
 }
 
 int main(int argc, char const *argv[])
