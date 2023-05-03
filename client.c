@@ -29,7 +29,6 @@ char *username; //the client username
 char mysymbol;
 matrix *mymatrix; //the client matrix pointer
 struct mymsg msg;
-size_t msgsize = sizeof(struct mymsg) - sizeof(long);
 pid_t serverpid; //pid of server
 int numplayer; //indica se si tratta di player 1 o 2 (0,1)
 int computer = 0;
