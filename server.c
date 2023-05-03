@@ -17,8 +17,8 @@
 
 void sigHandler(int sig);
 int conversioneCarattereInNumero(char c);
-char *fifoclient2serverpath = "../client2server";
-char *fifosever2clientpath = "../server2client";
+char *fifoclient2serverpath = "/home/mario00/Scrivania/Progetto Sistemi Operativi/client2server";
+char *fifoserver2clientpath = "/home/mario00/Scrivania/Progetto Sistemi Operativi/server2client";
 int count = 0;
 int shmid;
 pid_t client1, client2;
@@ -30,9 +30,9 @@ int main(int argc, char *argv[]) {
     char *matrice;
     char buffer[10];
 
-    // set the function sigHandler as handler for the signal SIGINT
-    if (signal(SIGINT, sigHandler) == SIG_ERR)
-        return -1;
+//    // set the function sigHandler as handler for the signal SIGINT
+//    if (signal(SIGINT, sigHandler) == SIG_ERR)
+//        return -1;
 
 
     //    printf("argc: %d\n", argc);
@@ -56,81 +56,99 @@ int main(int argc, char *argv[]) {
         ErrExit("Creare una matrice di dimensione almeno 5x5\n");
     }
 
+    /** Creating all fifos **/
+    int fifoClientToServer = createFifo(fifoclient2serverpath, S_IRUSR | S_IWUSR);
+    int fifoServerToClient = createFifo(fifoserver2clientpath, S_IRUSR | S_IWUSR);
+
+
+
     /** RICEVO PID DA GIOCATORE 1 **/
     //create new fifo
-    int fifoClientToServer = createFifo(fifoclient2serverpath, S_IRUSR | S_IWUSR);
-    //opening fifo
-    int fifoClientToServerFd1 = openFifo(fifoclient2serverpath, O_RDONLY);
-    if(read(fifoClientToServerFd1, buffer, sizeof(buffer)) == -1){
+    printf("ricevo pid da G1\n");;
+    //open fifo
+    int fd = openFifo(fifoclient2serverpath, O_RDONLY);
+    //reading fifo
+    if(read(fd, buffer, sizeof(buffer)) == -1){
         ErrExit("error read");
     }
+    //printing pid G1
     printf("buffer: %s\n", buffer);
-    closeFifo(fifoClientToServerFd1);
+    closeFifo(fd);
+
+//    /** Invio a giocatore 1 **/
+//    char ricercaGiocatoreBuffer[] = "Ricerca secondo giocatore";
+//    int fifoServerToClientFd = openFifo(fifoserver2clientpath, O_WRONLY);
+//    if(write(fifoServerToClientFd, ricercaGiocatoreBuffer, sizeof(buffer)) == -1){
+//        ErrExit("error write");
+//    }
+//    closeFifo(fifoServerToClientFd);
+
 
     /** RICEVO PID DA GIOCATORE 2 **/
-    //opening fifo
-    int fifoClientToServerFd2 = openFifo(fifoclient2serverpath, O_RDONLY);
-    if(read(fifoClientToServerFd2, buffer, sizeof(buffer)) == -1){
+    int fd2 = openFifo(fifoclient2serverpath, O_RDONLY);
+    //reading fifo
+    if(read(fd2, buffer, sizeof(buffer)) == -1){
         ErrExit("error read");
     }
+    //printing G2
     printf("buffer: %s\n", buffer);
-    closeFifo(fifoClientToServerFd2);
-
-
-
-
-
-
-    //creo un segmento di memoria condivisa
-    shmid = alloc_shared_memory(shmid, sizeof(mymatrix));
-    printf("shmid: %d\n", shmid);
-    //attach the shared memory in read/write mode
-    puntatoreSharedMemory = get_shared_memory(shmid, 0);
-    //writing on shared memory
-    for(int i = 0; i < mymatrix.heigth; i++){
-        for(int j = 0; j < mymatrix.length; j++){
-            puntatoreSharedMemory[i*colonna+j] = mymatrix.table[i][j];
-        }
-    }
-    char *readSharedMemoryPtr = get_shared_memory(shmid, SHM_RDONLY);
-    //reading from shared memory
-    for(int i = 0; i < mymatrix.heigth; i++){
-        for(int j = 0; j < mymatrix.length; j++){
-            printf("%c ", readSharedMemoryPtr[i*colonna+j]);
-        }
-        printf("\n");
-    }
-
-//
-//    //se CTRL+C viene premuto due volte il gioco si interrompe
-//    while(count < 2){
-//
-//    };
-
-    //detach a segment of shared memory
-    free_shared_memory(puntatoreSharedMemory);
-    // delete the shared memory segment
-    remove_shared_memory(shmid);
+    close(fd2);
+    //removing fifo
     removeFifo(fifoclient2serverpath);
 
 
+//
+//    //creo un segmento di memoria condivisa
+//    shmid = alloc_shared_memory(shmid, sizeof(mymatrix));
+//    printf("shmid: %d\n", shmid);
+//    //attach the shared memory in read/write mode
+//    puntatoreSharedMemory = get_shared_memory(shmid, 0);
+//    //writing on shared memory
+//    for(int i = 0; i < mymatrix.heigth; i++){
+//        for(int j = 0; j < mymatrix.length; j++){
+//            puntatoreSharedMemory[i*colonna+j] = mymatrix.table[i][j];
+//        }
+//    }
+//    char *readSharedMemoryPtr = get_shared_memory(shmid, SHM_RDONLY);
+//    //reading from shared memory
+//    for(int i = 0; i < mymatrix.heigth; i++){
+//        for(int j = 0; j < mymatrix.length; j++){
+//            printf("%c ", readSharedMemoryPtr[i*colonna+j]);
+//        }
+//        printf("\n");
+
+
+////
+////    //se CTRL+C viene premuto due volte il gioco si interrompe
+////    while(count < 2){
+////
+////    };
+//
+//    //detach a segment of shared memory
+//    free_shared_memory(puntatoreSharedMemory);
+//    // delete the shared memory segment
+//    remove_shared_memory(shmid);
+    removeFifo(fifoclient2serverpath);
+    removeFifo(fifoserver2clientpath);
+
+
 
 }
-//Stampo a video un avvertimento quando viene premuto una volta CTRL+C
-void sigHandler(int sig) {
-    if(sig == SIGINT){
-        count = count + 1;
-        if(count == 1)
-            printf("Una seconda pressione di CTRL+C comporterà la terminazione del gioco.\n");
-        else if(count == 2){
-            //detach a segment of shared memory
-            free_shared_memory(puntatoreSharedMemory);
-            // delete the shared memory segment
-            remove_shared_memory(shmid);
-            removeFifo(fifoclient2serverpath);
-        }
-    }
-}
+////Stampo a video un avvertimento quando viene premuto una volta CTRL+C
+//void sigHandler(int sig) {
+//    if(sig == SIGINT){
+//        count = count + 1;
+//        if(count == 1)
+//            printf("Una seconda pressione di CTRL+C comporterà la terminazione del gioco.\n");
+//        else if(count == 2){
+//            //detach a segment of shared memory
+//            free_shared_memory(puntatoreSharedMemory);
+//            // delete the shared memory segment
+//            remove_shared_memory(shmid);
+//            removeFifo(fifoclient2serverpath);
+//        }
+//    }
+//}
 int conversioneCarattereInNumero(char c){
     // 0 -> 48
     // 1 -> 49...
