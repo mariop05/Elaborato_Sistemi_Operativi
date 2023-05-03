@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
-
+#include <fcntl.h>
 //librerie esterne
 #include "err_exit.h"
 #include "fifo.h"
@@ -17,23 +17,18 @@
 
 void sigHandler(int sig);
 int conversioneCarattereInNumero(char c);
-
+char *fifoclient2serverpath = "../client2server";
+char *fifosever2clientpath = "../server2client";
 int count = 0;
 int shmid;
+pid_t client1, client2;
 matrix mymatrix;
+char *puntatoreSharedMemory;
 int main(int argc, char *argv[]) {
 
 
     char *matrice;
-
-    // set of signals (N.B. it is not initialized!)
-    sigset_t mySet;
-    // initialize mySet to contain all signals
-    sigfillset(&mySet);
-    // remove SIGINT from mySet
-    sigdelset(&mySet, SIGINT);
-    // blocking all signals but SIGINT
-    sigprocmask(SIG_SETMASK, &mySet, NULL);
+    char buffer[10];
 
     // set the function sigHandler as handler for the signal SIGINT
     if (signal(SIGINT, sigHandler) == SIG_ERR)
@@ -55,28 +50,34 @@ int main(int argc, char *argv[]) {
     char simboloDue = *argv[4];
     mymatrix.heigth = riga;
     mymatrix.length = colonna;
-    //alloco spazio dove salvare il campo da gioco
-//    matrice = allocMatrice(riga, colonna);
-
-
 
     //verifico che venga create almeno una matrice di dimensione 5x5
     if(riga < 5 && colonna < 5){
         ErrExit("Creare una matrice di dimensione almeno 5x5\n");
     }
 
-//    mymatrix.table[0][0] = 'X';
-//    mymatrix.table[0][1] = 'X';
-//    mymatrix.table[0][2] = 'X';
-//    mymatrix.table[0][3] = 'X';
-//    mymatrix.table[0][4] = 'X';
-//    mymatrix.table[1][0] = 'X';
-//    mymatrix.table[1][1] = 'X';
-//    mymatrix.table[1][2] = 'X';
-//    mymatrix.table[1][3] = 'X';
-//    mymatrix.table[1][4] = 'X';
-//    mymatrix.table[0][0] = 'X';
-//    printf("%c\n",  mymatrix.table[0][0] = 'X');
+    /** RICEVO PID DA GIOCATORE 1 **/
+    //create new fifo
+    int fifoClientToServer = createFifo(fifoclient2serverpath, S_IRUSR | S_IWUSR);
+    //opening fifo
+    int fifoClientToServerFd1 = openFifo(fifoclient2serverpath, O_RDONLY);
+    if(read(fifoClientToServerFd1, buffer, sizeof(buffer)) == -1){
+        ErrExit("error read");
+    }
+    printf("buffer: %s\n", buffer);
+    closeFifo(fifoClientToServerFd1);
+
+    /** RICEVO PID DA GIOCATORE 2 **/
+    //opening fifo
+    int fifoClientToServerFd2 = openFifo(fifoclient2serverpath, O_RDONLY);
+    if(read(fifoClientToServerFd2, buffer, sizeof(buffer)) == -1){
+        ErrExit("error read");
+    }
+    printf("buffer: %s\n", buffer);
+    closeFifo(fifoClientToServerFd2);
+
+
+
 
 
 
@@ -84,7 +85,7 @@ int main(int argc, char *argv[]) {
     shmid = alloc_shared_memory(shmid, sizeof(mymatrix));
     printf("shmid: %d\n", shmid);
     //attach the shared memory in read/write mode
-    char *puntatoreSharedMemory = get_shared_memory(shmid, 0);
+    puntatoreSharedMemory = get_shared_memory(shmid, 0);
     //writing on shared memory
     for(int i = 0; i < mymatrix.heigth; i++){
         for(int j = 0; j < mymatrix.length; j++){
@@ -100,17 +101,18 @@ int main(int argc, char *argv[]) {
         printf("\n");
     }
 
-
-    //se CTRL+C viene premuto due volte il gioco si interrompe
-    while(count < 2){
-
-    };
+//
+//    //se CTRL+C viene premuto due volte il gioco si interrompe
+//    while(count < 2){
+//
+//    };
 
     //detach a segment of shared memory
     free_shared_memory(puntatoreSharedMemory);
-
     // delete the shared memory segment
     remove_shared_memory(shmid);
+    removeFifo(fifoclient2serverpath);
+
 
 
 }
@@ -121,7 +123,11 @@ void sigHandler(int sig) {
         if(count == 1)
             printf("Una seconda pressione di CTRL+C comporterà la terminazione del gioco.\n");
         else if(count == 2){
-
+            //detach a segment of shared memory
+            free_shared_memory(puntatoreSharedMemory);
+            // delete the shared memory segment
+            remove_shared_memory(shmid);
+            removeFifo(fifoclient2serverpath);
         }
     }
 }
