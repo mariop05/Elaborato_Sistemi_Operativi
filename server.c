@@ -17,8 +17,6 @@
 
 void sigHandler(int sig);
 int conversioneCarattereInNumero(char c);
-char *fifoclient2serverpath = "/home/mario00/Scrivania/Progetto Sistemi Operativi/client2server";
-char *fifoserver2clientpath = "/home/mario00/Scrivania/Progetto Sistemi Operativi/server2client";
 int count = 0;
 int shmid;
 pid_t client1, client2;
@@ -27,151 +25,63 @@ char *puntatoreSharedMemory;
 int main(int argc, char *argv[]) {
 
 
-    char *matrice;
-    char buffer[10];
-
-//    // set the function sigHandler as handler for the signal SIGINT
-//    if (signal(SIGINT, sigHandler) == SIG_ERR)
-//        return -1;
-
-
+    char *fifoclient2serverpath = "/home/mario00/Scrivania/Progetto Sistemi Operativi/client2server";
+    char *fifoserver2clientpath = "/home/mario00/Scrivania/Progetto Sistemi Operativi/server2client";
+    char buffer[100];
     //    printf("argc: %d\n", argc);
     //verifico se il server riceve 5 input
     if(argc != 5) {
         ErrExit("Per lanciare correttamente il server bisongna inserire i seguenti parametri:\nRiga matrice, Colonna matrice, Forma gettone uno, Forma gettone due\nEsempio: ./server 5 5 X O\n");
     }
 
-
-
-    //salvo il numero di righe e colonne inserite dall'utente
-    int riga = conversioneCarattereInNumero(*argv[1]);
-    int colonna = conversioneCarattereInNumero(*argv[2]);
-    char simboloUno = *argv[3];
-    char simboloDue = *argv[4];
-    mymatrix.heigth = riga;
-    mymatrix.length = colonna;
-
-    //verifico che venga create almeno una matrice di dimensione 5x5
-    if(riga < 5 && colonna < 5){
-        ErrExit("Creare una matrice di dimensione almeno 5x5\n");
-    }
-
-    /** Creating all fifos **/
-    int fifoClientToServer = createFifo(fifoclient2serverpath, S_IRUSR | S_IWUSR);
-    int fifoServerToClient = createFifo(fifoserver2clientpath, S_IRUSR | S_IWUSR);
-
-
-
     /** RICEVO PID DA GIOCATORE 1 **/
-    //create new fifo
-    printf("ricevo pid da G1\n");;
-    //open fifo
+    //creting new fifo
+    int fifoClientToServer = createFifo(fifoclient2serverpath, S_IRUSR | S_IWUSR);
+    //opening fifo
     int fd = openFifo(fifoclient2serverpath, O_RDONLY);
-    //reading fifo
     if(read(fd, buffer, sizeof(buffer)) == -1){
-        ErrExit("error read");
+        ErrExit("error read first PID");
     }
-    //printing pid G1
-    printf("buffer: %s\n", buffer);
+    printf("pid1: %s\n", buffer);
     closeFifo(fd);
 
-//    /** Invio a giocatore 1 **/
-//    char ricercaGiocatoreBuffer[] = "Ricerca secondo giocatore";
-//    int fifoServerToClientFd = openFifo(fifoserver2clientpath, O_WRONLY);
-//    if(write(fifoServerToClientFd, ricercaGiocatoreBuffer, sizeof(buffer)) == -1){
-//        ErrExit("error write");
-//    }
-//    closeFifo(fifoServerToClientFd);
+    /** INVIO A GIOCATORE 1 AVVISO DI ATTESA RICERCA GIOCATORE DUE */
+    char attesaBuffer[] = "Ricerca di giocatore 2";
+    //opening fifo
+    int fd2 = openFifo(fifoserver2clientpath, O_WRONLY);
+    if(write(fd2, attesaBuffer, sizeof(attesaBuffer)) == -1){
+        ErrExit("error first write");
+    }
+    closeFifo(fd2);
 
 
     /** RICEVO PID DA GIOCATORE 2 **/
-    int fd2 = openFifo(fifoclient2serverpath, O_RDONLY);
-    //reading fifo
-    if(read(fd2, buffer, sizeof(buffer)) == -1){
-        ErrExit("error read");
+    fd = openFifo(fifoclient2serverpath, O_RDONLY);
+    if(read(fd, buffer, sizeof(buffer)) == -1){
+        ErrExit("error read second PID");
     }
-    //printing G2
-    printf("buffer: %s\n", buffer);
-    close(fd2);
-    //removing fifo
+    printf("pid2: %s\n", buffer);
+    closeFifo(fd);
+
+//    /** AVVISO GIOCATORE 1 CHE È STATO TROVATO UN AVVERSARIO **/
+//    char trovatoGiocatore[] = "Trovato giocatore 2";
+//    //opening fifo
+//    printf("opening fifo2");
+//    fd2 = openFifo(fifoserver2clientpath, O_WRONLY);
+//    if(write(fd2, trovatoGiocatore, sizeof(trovatoGiocatore)) == -1){
+//        ErrExit("error first write");
+//    }
+//    closeFifo(fd2);
+
+
+
+    //removing all fifos
     removeFifo(fifoclient2serverpath);
 
 
-//
-//    //creo un segmento di memoria condivisa
-//    shmid = alloc_shared_memory(shmid, sizeof(mymatrix));
-//    printf("shmid: %d\n", shmid);
-//    //attach the shared memory in read/write mode
-//    puntatoreSharedMemory = get_shared_memory(shmid, 0);
-//    //writing on shared memory
-//    for(int i = 0; i < mymatrix.heigth; i++){
-//        for(int j = 0; j < mymatrix.length; j++){
-//            puntatoreSharedMemory[i*colonna+j] = mymatrix.table[i][j];
-//        }
-//    }
-//    char *readSharedMemoryPtr = get_shared_memory(shmid, SHM_RDONLY);
-//    //reading from shared memory
-//    for(int i = 0; i < mymatrix.heigth; i++){
-//        for(int j = 0; j < mymatrix.length; j++){
-//            printf("%c ", readSharedMemoryPtr[i*colonna+j]);
-//        }
-//        printf("\n");
-
-
-////
-////    //se CTRL+C viene premuto due volte il gioco si interrompe
-////    while(count < 2){
-////
-////    };
-//
-//    //detach a segment of shared memory
-//    free_shared_memory(puntatoreSharedMemory);
-//    // delete the shared memory segment
-//    remove_shared_memory(shmid);
-    removeFifo(fifoclient2serverpath);
-    removeFifo(fifoserver2clientpath);
 
 
 
-}
-////Stampo a video un avvertimento quando viene premuto una volta CTRL+C
-//void sigHandler(int sig) {
-//    if(sig == SIGINT){
-//        count = count + 1;
-//        if(count == 1)
-//            printf("Una seconda pressione di CTRL+C comporterà la terminazione del gioco.\n");
-//        else if(count == 2){
-//            //detach a segment of shared memory
-//            free_shared_memory(puntatoreSharedMemory);
-//            // delete the shared memory segment
-//            remove_shared_memory(shmid);
-//            removeFifo(fifoclient2serverpath);
-//        }
-//    }
-//}
-int conversioneCarattereInNumero(char c){
-    // 0 -> 48
-    // 1 -> 49...
-    // 9 -> 57
-    if(c == '0')
-        return 0;
-    if(c == '1')
-        return 1;
-    if(c == '2')
-        return 2;
-    if(c == '3')
-        return 3;
-    if(c == '4')
-        return 4;
-    if(c == '5')
-        return 5;
-    if(c == '6')
-        return 6;
-    if(c == '7')
-        return 7;
-    if(c == '8')
-        return 8;
-    if(c == '9')
-        return 9;
-    return -1;
+
+
 }
