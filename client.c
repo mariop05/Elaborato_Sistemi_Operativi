@@ -17,10 +17,10 @@
 #include "shared_memory.h"
 #include "utils.h"
 
-
 #define SEM_KEY 10
 #define SHM_KEY 11
 #define MSQ_KEY 12
+#define ALARM_TIME 30
 
 const char *fifoclient2serverpath = "./client2server";
 const char *fifosever2clientpath = "./server2client";
@@ -120,7 +120,12 @@ void sigUsrHandler(int sig){
 
 void sigAlaHandler(int sig){
     
-
+    if (sig == SIGALRM)
+    {
+        printf("Tempo scaduto, ora tocca all' avversario\n");
+        semOp(semid, numplayer, -1);
+    }
+    
 }
 
 int main(int argc, char const *argv[])
@@ -205,13 +210,15 @@ int main(int argc, char const *argv[])
         printmatrix(mymatrix);
         
         int column;
-        printf("Inserisci la mossa\n");
+        printf("Inserisci la mossa entro 30 secondi\n");
+        alarm(ALARM_TIME);
 
         do{
             scanf("%d", &column);
         }
         while(insert(mymatrix, mysymbol, column));
 
+        alarm(0);
         semOp(semid, numplayer, -1);
     }
     
