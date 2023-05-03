@@ -160,7 +160,7 @@ int main(int argc, char const *argv[])
     msqid = msgget(MSQ_KEY, S_IRUSR | S_IWUSR);
 
     if (semid == -1)
-        ErrExit("Errore nella configurazione dei semafori (forse il server non è in esecuzione?)");
+        ErrExit("Errore nella configurazione dei messaggi (forse il server non è in esecuzione?)");
 
     //mi prendo la memoria condivisa
     shmid = take_shared_memory(SHM_KEY, sizeof(matrix));
@@ -176,8 +176,10 @@ int main(int argc, char const *argv[])
         ErrExit("Errore in apertura fifoserver2client");
 
     int br = read(fifoserver2clientfd, &buffer, sizeof(buffer));
+
     if (br == -1)
         ErrExit("read fifo server2client fallita");
+
     else if (br != strlen(buffer))
         ErrExit("read fifo server2client sbagliata");
 
@@ -190,10 +192,13 @@ int main(int argc, char const *argv[])
     // memorizzo il pid del server
     serverpid = (pid_t) atoi(&buffer[2]);
 
-    if (numplayer == 1)
+    if (numplayer == 1 && computer == 0)
         printf("In attesa di player 2");
 
-    itoa(getpid(), buffer);
+    char charpid[10];
+    itoa(getpid(), charpid);
+
+    sprintf(buffer, "%c%s", computer+48, charpid);
 
     br = write(fifoclient2serverfd, &buffer, sizeof(buffer));
     if (br == -1)
@@ -209,16 +214,22 @@ int main(int argc, char const *argv[])
 
         printmatrix(mymatrix);
         
-        int column;
-        printf("Inserisci la mossa entro 30 secondi\n");
+        // imposto l' allarme tra X secondi
+        printf("\nInserisci la cella in cui inserire il gettone entro %d secondi\n", ALARM_TIME);
         alarm(ALARM_TIME);
+
+        int column;
 
         do{
             scanf("%d", &column);
         }
-        while(insert(mymatrix, mysymbol, column));
+        while(insert(mymatrix, mysymbol, column - 1));
 
         alarm(0);
+
+        printmatrix(mymatrix);
+        fflush(stdout);
+
         semOp(semid, numplayer, -1);
     }
     
