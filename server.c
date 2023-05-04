@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/msg.h>
 #include <unistd.h>
 #include <signal.h>
 #include <sys/types.h>
@@ -15,15 +16,20 @@
 #include "semaphore.h"
 #include "shared_memory.h"
 #include "matrix.h"
+#include "message_queue.h"
 
 #define SEM_KEY 10
 #define SHM_KEY 11
 #define MSQ_KEY 12
 
-void sigHandler(int sig);
-int conversioneCarattereInNumero(char c);
+void sigIntHandler(int sig);
+void sigUsrHandler(int sig);
+
 char *fifoclient2serverpath = "./client2server";
 char *fifoserver2clientpath = "./server2client";
+
+const size_t msgsize = sizeof(struct mymsg) - sizeof(long);
+
 int count = 0;
 int shmid;
 int semid;
@@ -32,13 +38,98 @@ int computer = 0;
 pid_t client1, client2;
 matrix *mymatrix;
 
+void exitSequence(){
+
+    fflush(stdout);
+    free_shared_memory(mymatrix);
+    
+    sleep(1);
+    if (semctl(semid, 0, IPC_RMID) == -1){
+        ErrExit("rimozione semafori fallita");
+    }
+
+    //struct msqid_ds msqidds;
+    //if (msgctl(msqid, IPC_STAT, &msqidds) == -1)
+    //    ErrExit("ricezione informazioni fallita");
+
+    if (msgctl(msqid, IPC_RMID, NULL) == -1)
+        //ErrExit("rimozione messaggi fallita");
+
+    removeFifo(fifoserver2clientpath);
+    removeFifo(fifoclient2serverpath);
+
+    exit(0);
+
+}
+
+void sendwin(int wincode, int winner){
+
+    //win
+    if(wincode == 1){
+        
+        struct mymsg msg1, msg2;
+        msg1.mtype = 1;
+        msg2.mtype = 1;
+        sprintf(msg1.mtext, "%dwin", winner);
+        sprintf(msg2.mtext, "%dwin", winner);
+
+        msgsnd(msqid, &msg1, msgsize, 0);
+        if(computer == 0){
+            msgsnd(msqid, &msg2, msgsize, 0);
+        }
+        
+        kill(client1, SIGUSR1);
+        if(computer == 0)
+            kill(client2, SIGUSR1);
+
+        exitSequence();
+    }
+    
+    //parity
+    else if(wincode == 2){
+        struct mymsg msg1, msg2;
+        msg1.mtype = 1;
+        msg2.mtype = 1;
+        sprintf(msg1.mtext, "parity");
+        sprintf(msg2.mtext, "parity");
+
+        msgsnd(msqid, &msg1, msgsize, 0);
+        if(computer == 0){
+            msgsnd(msqid, &msg2, msgsize, 0);
+        }
+
+        kill(client1, SIGUSR1);
+        if(computer == 0)
+            kill(client2, SIGUSR1);
+
+        exitSequence();
+    }
+    //win for exit
+    else if(wincode == 3){
+        struct mymsg msg1;
+        msg1.mtype = 1;
+        sprintf(msg1.mtext, "winforctrlc");
+
+        msgsnd(msqid, &msg1, msgsize, 0);
+
+        if (winner == 0)
+            kill(client1, SIGUSR1);
+        
+        else if (winner == 1)
+            kill(client2, SIGUSR1);
+
+        exitSequence();
+    }
+}
+
 int main(int argc, char *argv[]) {
 
     char *matrice;
     char buffer[10];
 
     // set the function sigHandler as handler for the signal SIGINT
-    if (signal(SIGINT, sigHandler) == SIG_ERR)
+    if (signal(SIGINT, sigIntHandler) == SIG_ERR ||
+        signal(SIGUSR1,sigUsrHandler) == SIG_ERR)
         return -1;
 
     //    printf("argc: %d\n", argc);
@@ -48,8 +139,8 @@ int main(int argc, char *argv[]) {
     }
 
     //salvo il numero di righe e colonne inserite dall'utente
-    int riga = conversioneCarattereInNumero(*argv[1]);
-    int colonna = conversioneCarattereInNumero(*argv[2]);
+    int riga = atoi(argv[1]);
+    int colonna = atoi(argv[2]);
     char simboloUno = *argv[3];
     char simboloDue = *argv[4];
 
@@ -69,6 +160,12 @@ int main(int argc, char *argv[]) {
 
     //inizializza la matrice
     initializematrix(mymatrix);
+
+    //apro la coda di messaggi creata dal master
+    msqid = msgget(MSQ_KEY, IPC_CREAT | S_IRUSR | S_IWUSR);
+
+    if (msqid == -1)
+        ErrExit("msgget failed");
 
     //apro un nuovo semaforo
     semid = semget(SEM_KEY, 2 ,IPC_CREAT |  S_IRUSR | S_IWUSR);
@@ -144,7 +241,11 @@ int main(int argc, char *argv[]) {
         if(read(fifoClient2ServerFd, buffer, sizeof(buffer)) == -1){
             ErrExit("error read");
         }
+
         printf("buffer: %s\n", buffer);
+
+        client2 = (pid_t) atoi(&buffer[1]);
+
     }
 
     closeFifo(fifoServer2ClientFd);
@@ -161,77 +262,57 @@ int main(int argc, char *argv[]) {
         //guardo se il giocatore ha vinto
         win = checkwin(mymatrix,0);
 
-        //in caso di vittoria
-        if (win == 1){
-            
-
-            kill(client1, SIGUSR1);
-
-            if(computer == 0)
-                kill(client2, SIGUSR2);
-        }
-        else if (win == 2){
-
-
-            kill(client1, SIGUSR1);
-
-            if(computer == 0)
-                kill(client2, SIGUSR2);
-        }
+        sendwin(win, turn % 2);
 
         turn ++;
     }
-
-    //detach a segment of shared memory
-    free_shared_memory(mymatrix);
-    // delete the shared memory segment
-    remove_shared_memory(shmid);
-    if (semctl(semid, 0, IPC_RMID) == -1)
-        ErrExit("semctl failed");
-    removeFifo(fifoserver2clientpath);
-    removeFifo(fifoclient2serverpath);
-
-
-
 }
 //Stampo a video un avvertimento quando viene premuto una volta CTRL+C
-void sigHandler(int sig) {
+void sigIntHandler(int sig) {
     if(sig == SIGINT){
         count = count + 1;
         if(count == 1)
             printf("Una seconda pressione di CTRL+C comporterà la terminazione del gioco.\n");
         else if(count == 2){
-            //detach a segment of shared memory
-            free_shared_memory(mymatrix);
-            // delete the shared memory segment
-            remove_shared_memory(shmid);
-            removeFifo(fifoclient2serverpath);
+            
+            struct mymsg msg1, msg2;
+            msg1.mtype = 1;
+            msg2.mtype = 1;
+            sprintf(msg1.mtext, "ctrlc");
+            sprintf(msg2.mtext, "ctrlc");
+
+            msgsnd(msqid, &msg1, msgsize, 0);
+            if(computer == 0){
+                msgsnd(msqid, &msg2, msgsize, 0);
+            }
+        
+            kill(client1, SIGUSR1);
+            if(computer == 0)
+                kill(client2, SIGUSR1);
+
+            exitSequence();
         }
     }
 }
-int conversioneCarattereInNumero(char c){
-    // 0 -> 48
-    // 1 -> 49...
-    // 9 -> 57
-    if(c == '0')
-        return 0;
-    if(c == '1')
-        return 1;
-    if(c == '2')
-        return 2;
-    if(c == '3')
-        return 3;
-    if(c == '4')
-        return 4;
-    if(c == '5')
-        return 5;
-    if(c == '6')
-        return 6;
-    if(c == '7')
-        return 7;
-    if(c == '8')
-        return 8;
-    if(c == '9')
-        return 9;
-    return -1;
+
+void sigUsrHandler(int sig) {
+
+    if(sig == SIGUSR1){
+
+        struct mymsg msg;
+        msg.mtype = 1;
+
+        if (msgrcv(msqid, &msg, msgsize, 1, 0) == -1)
+        ErrExit("Impossibile ricevere il messaggio msgrcv");
+
+        char *message = msg.mtext;
+
+        if(strcmp(&message[1], "ctrlc") == 0){
+
+            printf("Giocatore %c ha abbandonato la partita", message[0]);
+
+            int winner = (message[0] + 1 ) % 2;
+            sendwin(3, winner);
+        }
+    }
 }

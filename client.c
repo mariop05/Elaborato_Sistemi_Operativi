@@ -44,32 +44,60 @@ int msqid;
 
 void exitSequence(){
 
+    usleep(200);
+    fflush(stdout);
     free_shared_memory(mymatrix);
-    
-    if (semctl(semid, 0, IPC_RMID) == -1){
-        ErrExit("rimozione semafori fallita");
-    }
 
-    if (msgctl(msqid, IPC_RMID, NULL) == -1)
-        ErrExit("rimozione messaggi fallita");
+    msgctl(msqid, IPC_RMID, NULL);
 
     exit(0);
 
+}
+
+void cicle(){
+
+    while(1){
+        // aspetto che il server mi sblocchi
+        semOp(semid, numplayer, -1);
+
+        system("clear"); 
+        printmatrix(mymatrix);
+        fflush(stdout);
+        
+        // imposto l' allarme tra X secondi
+        printf("\nInserisci la cella in cui inserire il gettone entro %d secondi\n", ALARM_TIME);
+        alarm(ALARM_TIME);
+
+        int column;
+
+        do{
+            scanf("%d", &column);
+        }
+        while(insert(mymatrix, mysymbol, column - 1));
+
+        alarm(0);
+
+        system("clear");
+        printmatrix(mymatrix);
+        fflush(stdout);
+
+        semOp(semid, numplayer, -1);
+    }
 }
 
 void sigIntHandler(int sig) {
 
     printf("CTRL-C rilevato!\n");
 
-    if(kill(serverpid, SIGUSR1) == -1) 
-        ErrExit("Impossibile mandare il segnale al server");
-
     msg.mtype = 1;
 
     sprintf(msg.mtext, "%dctrlc", numplayer);
 
-    if(msgsnd(msqid, &msg, msgsize, 0) == 0)
+    if(msgsnd(msqid, &msg, msgsize, 0) == -1)
         ErrExit("Impossibile inviare il messaggio msgsnd");
+
+    if(kill(serverpid, SIGUSR1) == -1) 
+        ErrExit("Impossibile mandare il segnale al server");
 
     exitSequence();
 }
@@ -83,10 +111,13 @@ void sigUsrHandler(int sig){
 
     if(strcmp(&message[1], "win") == 0){
 
-        if(message[0] - 48 == numplayer)
+        if(message[0] - 48 == numplayer){
             printf("\nComplimenti, HAI VINTO!!!\n");
-        else
+        }
+        else{
             printf("\nMi dispiace HAI PERSO :(\n");
+        }
+        exitSequence();
     }
 
     else if(strcmp(message, "ctrlc") == 0){
@@ -119,7 +150,9 @@ void sigAlaHandler(int sig){
     if (sig == SIGALRM)
     {
         printf("Tempo scaduto, ora tocca all' avversario\n");
+        fflush(stdout);
         semOp(semid, numplayer, -1);
+        cicle();
     }
     
 }
@@ -141,7 +174,7 @@ int main(int argc, char const *argv[])
     //blocco ctrl-c per rimuovere i semafori, la memoria condivisa e la fifo
     //blocco sigusr1 che mi comunica dal server se ho vinto il gioco, se ho perso
 
-    if (signal(SIGTERM, sigIntHandler) == SIG_ERR ||
+    if (signal(SIGINT, sigIntHandler) == SIG_ERR ||
         signal(SIGUSR1, sigUsrHandler) == SIG_ERR ||
         signal(SIGALRM, sigAlaHandler) == SIG_ERR)
         ErrExit("change signal handler failed");
@@ -204,31 +237,7 @@ int main(int argc, char const *argv[])
     closeFifo(fifoserver2clientfd);
     
     //entro nel loop del gioco
-    while(1)
-    {
-        // aspetto che il server mi sblocchi
-        semOp(semid, numplayer, -1);
-
-        printmatrix(mymatrix);
-        
-        // imposto l' allarme tra X secondi
-        printf("\nInserisci la cella in cui inserire il gettone entro %d secondi\n", ALARM_TIME);
-        alarm(ALARM_TIME);
-
-        int column;
-
-        do{
-            scanf("%d", &column);
-        }
-        while(insert(mymatrix, mysymbol, column - 1));
-
-        alarm(0);
-
-        printmatrix(mymatrix);
-        fflush(stdout);
-
-        semOp(semid, numplayer, -1);
-    }
+    cicle();
     
     
     return 0;
