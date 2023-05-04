@@ -30,8 +30,7 @@ int semid;
 int msqid;
 int computer = 0;
 pid_t client1, client2;
-matrix mymatrix;
-char *puntatoreSharedMemory;
+matrix *mymatrix;
 
 int main(int argc, char *argv[]) {
 
@@ -53,13 +52,23 @@ int main(int argc, char *argv[]) {
     int colonna = conversioneCarattereInNumero(*argv[2]);
     char simboloUno = *argv[3];
     char simboloDue = *argv[4];
-    mymatrix.heigth = riga;
-    mymatrix.length = colonna;
 
     //verifico che venga create almeno una matrice di dimensione 5x5
     if(riga < 5 && colonna < 5){
         ErrExit("Creare una matrice di dimensione almeno 5x5\n");
     }
+
+     //creo un segmento di memoria condivisa
+    shmid = alloc_shared_memory(SHM_KEY, sizeof(matrix));
+    printf("shmid: %d\n", shmid);
+
+    //attach the shared memory in read/write mode
+    mymatrix = (matrix *)get_shared_memory(shmid, 0);
+    mymatrix->heigth = riga;
+    mymatrix->length = colonna;
+
+    //inizializza la matrice
+    initializematrix(mymatrix);
 
     //apro un nuovo semaforo
     semid = semget(SEM_KEY, 2 ,IPC_CREAT |  S_IRUSR | S_IWUSR);
@@ -69,17 +78,11 @@ int main(int argc, char *argv[]) {
 
     //imposto i semafori con i giusti valori
     union semun arg;
-    unsigned short values[] = {2,2};
+    unsigned short values[] = {0,0};
     arg.array = values;
 
     if (semctl(semid, 0/*ignored*/, SETALL, arg) == -1)
         ErrExit("semctl SETALL");
-
-    //creo un segmento di memoria condivisa
-    shmid = alloc_shared_memory(SHM_KEY, sizeof(mymatrix));
-    printf("shmid: %d\n", shmid);
-    //attach the shared memory in read/write mode
-    puntatoreSharedMemory = get_shared_memory(shmid, 0);
 
     //create new fifo
     createFifo(fifoserver2clientpath,  S_IRUSR | S_IWUSR);
@@ -96,8 +99,8 @@ int main(int argc, char *argv[]) {
     int br = write(fifoServer2ClientFd, buffer, sizeof(buffer));
     if (br == -1)
         ErrExit("write fifo server2client fallita");
-    else if (br != strlen(buffer))
-        ErrExit("write server2client sbagliata");
+    //else if (br != strlen(buffer))
+        //ErrExit("write server2client sbagliata");
 
     /** RICEVO PID DA GIOCATORE 1 **/
 
@@ -115,6 +118,8 @@ int main(int argc, char *argv[]) {
 
     closeFifo(fifoServer2ClientFd);
     closeFifo(fifoClient2ServerFd);
+    printf("gioco da solo: %d\n", computer);
+    sleep(1);
 
     // se gioco contro il pc non vado ad interrogare il secondo client
     if (computer == 0)
@@ -125,13 +130,13 @@ int main(int argc, char *argv[]) {
 
         /** INVIO IL MIO PID A GIOCATORE 1 **/
 
-        sprintf(buffer, "%d%c%d", 1,simboloUno, getpid());
+        sprintf(buffer, "%d%c%d", 2, simboloDue, getpid());
 
         int br = write(fifoServer2ClientFd, buffer, sizeof(buffer));
         if (br == -1)
             ErrExit("write fifo server2client fallita");
-        else if (br != strlen(buffer))
-        ErrExit("write server2client sbagliata");
+        //else if (br != strlen(buffer))
+        //ErrExit("write server2client sbagliata");
         
         /** RICEVO PID DA GIOCATORE 2 **/
         //opening fifo
@@ -145,36 +150,45 @@ int main(int argc, char *argv[]) {
     closeFifo(fifoServer2ClientFd);
     closeFifo(fifoClient2ServerFd);
 
-    //creo un segmento di memoria condivisa
-    shmid = alloc_shared_memory(SHM_KEY, sizeof(mymatrix));
-    printf("shmid: %d\n", shmid);
-    //attach the shared memory in read/write mode
-    puntatoreSharedMemory = get_shared_memory(shmid, 0);
-    //writing on shared memory
-    for(int i = 0; i < mymatrix.heigth; i++){
-        for(int j = 0; j < mymatrix.length; j++){
-            puntatoreSharedMemory[i*colonna+j] = mymatrix.table[i][j];
-        }
-    }
-    char *readSharedMemoryPtr = get_shared_memory(shmid, SHM_RDONLY);
-    //reading from shared memory
-    for(int i = 0; i < mymatrix.heigth; i++){
-        for(int j = 0; j < mymatrix.length; j++){
-            printf("%c ", readSharedMemoryPtr[i*colonna+j]);
-        }
-        printf("\n");
-    }
+    int turn = 0;
+    int win = 0;
+    while(1)
+    {
+        //aspetto che il giocatore faccia la sua mossa
+        semOp(semid, turn % 2, 2);
+        semOp(semid, turn % 2, 0);
 
-//
-//    //se CTRL+C viene premuto due volte il gioco si interrompe
-//    while(count < 2){
-//
-//    };
+        //guardo se il giocatore ha vinto
+        win = checkwin(mymatrix,0);
+
+        //in caso di vittoria
+        if (win == 1){
+            
+
+            kill(client1, SIGUSR1);
+
+            if(computer == 0)
+                kill(client2, SIGUSR2);
+        }
+        else if (win == 2){
+
+
+            kill(client1, SIGUSR1);
+
+            if(computer == 0)
+                kill(client2, SIGUSR2);
+        }
+
+        turn ++;
+    }
 
     //detach a segment of shared memory
-    free_shared_memory(puntatoreSharedMemory);
+    free_shared_memory(mymatrix);
     // delete the shared memory segment
     remove_shared_memory(shmid);
+    if (semctl(semid, 0, IPC_RMID) == -1)
+        ErrExit("semctl failed");
+    removeFifo(fifoserver2clientpath);
     removeFifo(fifoclient2serverpath);
 
 
@@ -188,7 +202,7 @@ void sigHandler(int sig) {
             printf("Una seconda pressione di CTRL+C comporterà la terminazione del gioco.\n");
         else if(count == 2){
             //detach a segment of shared memory
-            free_shared_memory(puntatoreSharedMemory);
+            free_shared_memory(mymatrix);
             // delete the shared memory segment
             remove_shared_memory(shmid);
             removeFifo(fifoclient2serverpath);

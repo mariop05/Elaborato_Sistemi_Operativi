@@ -14,6 +14,9 @@ typedef struct
 //print the matrix
 void printmatrix(matrix *mymatrix);
 
+//set the matrix to space value
+void initializematrix(matrix *mymatrix);
+
 //insert in a specified row(where) a specified character(what)
 //returns -1 if it fails
 int insert(matrix *mymatrix, char what, int where);

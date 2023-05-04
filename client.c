@@ -173,11 +173,12 @@ int main(int argc, char const *argv[])
     if (br == -1)
         ErrExit("read fifo server2client fallita");
 
-    else if (br != strlen(buffer))
-        ErrExit("read fifo server2client sbagliata");
+    //else if (br != strlen(buffer))
+        //ErrExit("read fifo server2client sbagliata");
+    printf("\n%s\n" , buffer);
 
     // mi permette di capire se sono player 1 o 2
-    numplayer = buffer[0] - 48;
+    numplayer = buffer[0] - 49;
 
     // memorizzo il simbolo del giocatore
     mysymbol = buffer[1];
@@ -185,16 +186,19 @@ int main(int argc, char const *argv[])
     // memorizzo il pid del server
     serverpid = (pid_t) atoi(&buffer[2]);
 
-    if (numplayer == 1 && computer == 0)
-        printf("In attesa di player 2");
+    if (numplayer == 0 && computer == 0)
+    {
+        printf("In attesa di player 2\n");
+        fflush(stdout);
+    }
 
     sprintf(buffer, "%c%d", computer + 48, getpid());
 
     br = write(fifoclient2serverfd, buffer, sizeof(buffer));
     if (br == -1)
         ErrExit("write fifo client2server fallita");
-    else if (br != strlen(buffer))
-        ErrExit("write client2server sbagliata");
+    //else if (br != strlen(buffer))
+        //ErrExit("write client2server sbagliata");
 
     closeFifo(fifoclient2serverfd);
     closeFifo(fifoserver2clientfd);
