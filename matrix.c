@@ -21,6 +21,16 @@ void printmatrix(matrix *mymatrix)
         }
         printf("\n");
     }
+    //stampo la numerazione sotto
+    for(column = 0; column < (2 * mymatrix->length + 1); column++) {
+        
+        if(column % 2 == 0){
+            printf("|");
+        }
+        else{
+            printf("%d", column / 2 + 1);
+        }
+    }
 }
 
 void initializematrix(matrix *mymatrix)

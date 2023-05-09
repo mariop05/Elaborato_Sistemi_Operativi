@@ -28,12 +28,12 @@ char *fifosever2clientpath = "./server2client";
 const size_t msgsize = sizeof(struct mymsg) - sizeof(long);
 
 char *username; //the client username
-char mysymbol;
+char mysymbol; //my symbol given by server
 matrix *mymatrix; //the client matrix pointer
-struct mymsg msg;
+struct mymsg msg; //message for message queue
 pid_t serverpid; //pid of server
 int numplayer; //indica se si tratta di player 1 o 2 (0,1)
-int computer = 0;
+int computer = 0;  //play vs pc (0 no 1 yes)
 
 int semid;
 int shmid;
@@ -44,10 +44,12 @@ int msqid;
 
 void exitSequence(){
 
+    //dorme per permettere alla coda di messaggi di inviare correttamente eventuali messaggi
     usleep(200);
     fflush(stdout);
     free_shared_memory(mymatrix);
 
+    //senza ErrExit perchè potrebbe non essere il primo a eliminare la coda di messaggi
     msgctl(msqid, IPC_RMID, NULL);
 
     exit(0);
@@ -60,6 +62,7 @@ void cicle(){
         // aspetto che il server mi sblocchi
         semOp(semid, numplayer, -1);
 
+        //cancello lo schermo e stampo la matrice
         system("clear"); 
         printmatrix(mymatrix);
         fflush(stdout);
@@ -68,19 +71,36 @@ void cicle(){
         printf("\nInserisci la cella in cui inserire il gettone entro %d secondi\n", ALARM_TIME);
         alarm(ALARM_TIME);
 
-        int column;
+        char column[100];
+        int res = 1;
 
         do{
-            scanf("%d", &column);
-        }
-        while(insert(mymatrix, mysymbol, column - 1));
+            //mi assicuro che il valore sia un numero e che la colonna esista e non sia già piena
+            scanf("%s", column);
 
+            for (size_t i = 0; i < strlen(column); i++)
+            {
+                if(column[i] < 48 || column[i] > 57){
+                    printf("Devi inserire un numero\n");
+                    res = 1;
+                }
+                else{
+                    res = insert(mymatrix, mysymbol, atoi(column) - 1);
+                }
+            }
+            
+        }
+        while(res);
+
+        //resetto l' allarme
         alarm(0);
 
+        //ristampo la matrice
         system("clear");
         printmatrix(mymatrix);
         fflush(stdout);
 
+        //sblocco l' altro giocatore
         semOp(semid, numplayer, -1);
     }
 }
@@ -104,28 +124,35 @@ void sigIntHandler(int sig) {
 
 void sigUsrHandler(int sig){
 
+    //ricevo il messaggio dal server
     if (msgrcv(msqid, &msg, msgsize, 1, 0) == -1)
         ErrExit("Impossibile ricevere il messaggio msgrcv");
 
     char *message = msg.mtext;
 
+    //se ho vinto / perso
     if(strcmp(&message[1], "win") == 0){
 
         if(message[0] - 48 == numplayer){
             printf("\nComplimenti, HAI VINTO!!!\n");
         }
         else{
+            system("clear");
+            printmatrix(mymatrix);
+
             printf("\nMi dispiace HAI PERSO :(\n");
         }
         exitSequence();
     }
 
+    //se il server abbandona
     else if(strcmp(message, "ctrlc") == 0){
 
         printf("\nIl server ha abbandonato la partita\n");
         exitSequence();
     }
 
+    //se l' avversario abbandona
     else if(strcmp(message, "winforctrlc") == 0){
 
         printf("\nHAI VINTO per abbandono dell' avversario\n");
@@ -163,13 +190,13 @@ int main(int argc, char const *argv[])
         username = (char *)argv[1];
         
 
-    else if (argc == 3 && strcmp(argv[2], "*") == 0){
+    else if (argc == 3 && strcmp(argv[2], "-c") == 0){
         username = (char *)argv[1];
         computer = 1;
     }
 
     else
-       ErrExit("Sintassi sbagliata\nLa sintassi corretta è: ./client nomegiocatore\nPer giocare contro il computer è necessario inserire * come secondo parametro");
+       ErrExit("Sintassi sbagliata\nLa sintassi corretta è: ./client nomegiocatore\nPer giocare contro il computer è necessario inserire -c come secondo parametro");
     
     //blocco ctrl-c per rimuovere i semafori, la memoria condivisa e la fifo
     //blocco sigusr1 che mi comunica dal server se ho vinto il gioco, se ho perso
@@ -208,7 +235,6 @@ int main(int argc, char const *argv[])
 
     //else if (br != strlen(buffer))
         //ErrExit("read fifo server2client sbagliata");
-    printf("\n%s\n" , buffer);
 
     // mi permette di capire se sono player 1 o 2
     numplayer = buffer[0] - 49;

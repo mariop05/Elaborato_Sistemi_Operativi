@@ -10,6 +10,7 @@
 #include <sys/sem.h>
 #include <fcntl.h>
 #include <string.h>
+#include <time.h>
 //librerie esterne
 #include "err_exit.h"
 #include "fifo.h"
@@ -24,6 +25,7 @@
 
 void sigIntHandler(int sig);
 void sigUsrHandler(int sig);
+
 
 char *fifoclient2serverpath = "./client2server";
 char *fifoserver2clientpath = "./server2client";
@@ -57,6 +59,10 @@ void exitSequence(){
 
     removeFifo(fifoserver2clientpath);
     removeFifo(fifoclient2serverpath);
+
+    if(computer == 1){
+        kill(client2, SIGTERM);
+    }
 
     exit(0);
 
@@ -122,6 +128,25 @@ void sendwin(int wincode, int winner){
     }
 }
 
+void computerGame(char mysymbol){
+
+    close(STDOUT_FILENO);
+    srand(time(NULL));
+
+    while(1){
+
+        semOp(semid, 1, -1);
+        int column = 0;
+
+        do{
+            column = rand() % mymatrix->length + 1;
+        }
+        while(insert(mymatrix, mysymbol, column - 1));
+
+        semOp(semid, 1, -1);
+    }
+}
+
 int main(int argc, char *argv[]) {
 
     char *matrice;
@@ -130,7 +155,7 @@ int main(int argc, char *argv[]) {
     // set the function sigHandler as handler for the signal SIGINT
     if (signal(SIGINT, sigIntHandler) == SIG_ERR ||
         signal(SIGUSR1,sigUsrHandler) == SIG_ERR)
-        return -1;
+        ErrExit("signal failed");
 
     //    printf("argc: %d\n", argc);
     //verifico se il server riceve 5 input
@@ -149,9 +174,10 @@ int main(int argc, char *argv[]) {
         ErrExit("Creare una matrice di dimensione almeno 5x5\n");
     }
 
+    printf("Server in esecuzione\n");
+
      //creo un segmento di memoria condivisa
     shmid = alloc_shared_memory(SHM_KEY, sizeof(matrix));
-    printf("shmid: %d\n", shmid);
 
     //attach the shared memory in read/write mode
     mymatrix = (matrix *)get_shared_memory(shmid, 0);
@@ -205,17 +231,17 @@ int main(int argc, char *argv[]) {
         ErrExit("error read");
     }
 
-    printf("buffer: %s\n", buffer);
-
     //il primo numero decide se giocherò contro il pc
     computer = buffer[0] - 48;
+
+    printf("Modalità di gioco: %s\n", computer == 0? "due giocatori" : "un giocatore");
 
     // memorizzo il pid del server
     client1 = (pid_t) atoi(&buffer[1]);
 
     closeFifo(fifoServer2ClientFd);
     closeFifo(fifoClient2ServerFd);
-    printf("gioco da solo: %d\n", computer);
+
     sleep(1);
 
     // se gioco contro il pc non vado ad interrogare il secondo client
@@ -242,14 +268,25 @@ int main(int argc, char *argv[]) {
             ErrExit("error read");
         }
 
-        printf("buffer: %s\n", buffer);
-
         client2 = (pid_t) atoi(&buffer[1]);
+
+        closeFifo(fifoServer2ClientFd);
+        closeFifo(fifoClient2ServerFd);
 
     }
 
-    closeFifo(fifoServer2ClientFd);
-    closeFifo(fifoClient2ServerFd);
+    else if (computer == 1)
+    {
+        pid_t client2 = fork();
+        
+        if (client2 == -1){
+            ErrExit("error fork");
+        }
+
+        else if(client2 == 0){
+            computerGame(simboloDue);
+        }
+    }
 
     int turn = 0;
     int win = 0;
@@ -287,8 +324,9 @@ void sigIntHandler(int sig) {
             }
         
             kill(client1, SIGUSR1);
-            if(computer == 0)
+            if(computer == 0){
                 kill(client2, SIGUSR1);
+            }
 
             exitSequence();
         }
