@@ -54,7 +54,7 @@ void exitSequence(){
     //if (msgctl(msqid, IPC_STAT, &msqidds) == -1)
     //    ErrExit("ricezione informazioni fallita");
 
-    if (msgctl(msqid, IPC_RMID, NULL) == -1)
+    if (msgctl(msqid, IPC_RMID, NULL) == -1){}
         //ErrExit("rimozione messaggi fallita");
 
     removeFifo(fifoserver2clientpath);
@@ -187,7 +187,7 @@ int main(int argc, char *argv[]) {
     //inizializza la matrice
     initializematrix(mymatrix);
 
-    //apro la coda di messaggi creata dal master
+    //creo la coda dei messaggi
     msqid = msgget(MSQ_KEY, IPC_CREAT | S_IRUSR | S_IWUSR);
 
     if (msqid == -1)
@@ -341,7 +341,7 @@ void sigUsrHandler(int sig) {
         msg.mtype = 1;
 
         if (msgrcv(msqid, &msg, msgsize, 1, 0) == -1)
-        ErrExit("Impossibile ricevere il messaggio msgrcv");
+            ErrExit("Impossibile ricevere il messaggio msgrcv");
 
         char *message = msg.mtext;
 
