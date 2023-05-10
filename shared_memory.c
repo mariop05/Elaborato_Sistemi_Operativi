@@ -36,3 +36,10 @@ void remove_shared_memory(int shmid) {
     if (shmctl(shmid, IPC_RMID, NULL) == -1)
         ErrExit("shmctl failed");
 }
+int take_shared_memory(key_t shmKey, size_t size) {
+    int shmid = shmget(shmKey, size, S_IRUSR | S_IWUSR);
+    if (shmid == -1)
+        ErrExit("shmget failed");
+
+    return shmid;
+}

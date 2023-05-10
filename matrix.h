@@ -23,7 +23,7 @@ int insert(matrix *mymatrix, char what, int where);
 //check the win
 int checkwin(matrix *mymatrix, int checkdiagonal/*0 if not diadonal, 1 if yes*/);
 
-
+void initializematrix(matrix *mymatrix);
 
 
 #endif

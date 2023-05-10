@@ -119,3 +119,9 @@
 
      return(0);
  }
+ void initializematrix(matrix *mymatrix)
+ {
+     for(int row = 0; row < mymatrix->heigth; row ++)
+         for(int column = 0; column < mymatrix->length; column ++)
+             mymatrix->table[row][column] = ' ';
+ }

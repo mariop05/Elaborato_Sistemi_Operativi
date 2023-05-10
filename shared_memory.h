@@ -29,4 +29,7 @@ void free_shared_memory(void *ptr_sh);
 // If it does not succeed, it terminates the calling process
 void remove_shared_memory(int shmid);
 
+int take_shared_memory(key_t shmKey, size_t size);
+
+
 #endif
