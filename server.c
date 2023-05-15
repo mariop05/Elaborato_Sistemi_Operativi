@@ -245,8 +245,6 @@ int main(int argc, char *argv[]) {
             fineSequenza();
         }
         turno++;
-
-
     }
 
 
@@ -263,6 +261,8 @@ void sigHandler(int sig) {
         if(count == 1)
             printf("Una seconda pressione di CTRL+C comporterà la terminazione del gioco.\n");
         else if(count == 2){
+            kill(client1, SIGTERM);
+            kill(client2, SIGTERM);
             fineSequenza();
         }
     }
@@ -272,7 +272,7 @@ void sigHandler(int sig) {
         msg1.mtype = 1;
         char *textMessageQueue = "Hai perso per abbandono\n";
         memcpy(msg1.mtext, textMessageQueue, strlen(textMessageQueue) + 1);
-        printf("msg1.text: %s\n", msg1.mtext);
+//        printf("msg1.text: %s\n", msg1.mtext);
         size_t mSize = sizeof(msg1) - sizeof(long);
         if(msgsnd(msqid, &msg1, mSize, 0) == -1){
             ErrExit("msgsnd failed");
@@ -280,7 +280,7 @@ void sigHandler(int sig) {
         msg1.mtype = 2;
         char *textMessageQueue1 = "Hai vinto per abbandono\n";
         memcpy(msg1.mtext, textMessageQueue1, strlen(textMessageQueue1) + 1);
-        printf("msg1.text: %s\n", msg1.mtext);
+//        printf("msg1.text: %s\n", msg1.mtext);
         if(msgsnd(msqid, &msg1, mSize, 0) == -1){
             ErrExit("msgsnd failed");
         }

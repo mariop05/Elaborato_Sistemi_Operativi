@@ -18,6 +18,7 @@
 #include "fifo.h"
 #include "utils.h"
 #include <sys/msg.h>
+#include <time.h>
 
 #define SEM_KEY 10
 #define SHM_KEY 11
@@ -77,6 +78,16 @@ void sigHandler(int sig){
 
     }
 }
+void computerGame(){
+    int pos, ris;
+    //genere un numero casuale tra 0 e il numero massimo della colonna - 1 della matrice
+    do {
+        pos = rand() % mymatrix->length;
+        ris = insert(mymatrix, mysymbol, pos);
+    } while (ris == -1);
+    printmatrix(mymatrix);
+    semOp(semid, numplayer, -1);
+}
 
 int main(int argc, char const *argv[])
 {
@@ -90,7 +101,7 @@ int main(int argc, char const *argv[])
         ErrExit("signal failed");
     }
 
-
+    srand(time(NULL));
 
     /*
      * Verifico se il giocatore inserisce due o tre argomenti.
@@ -149,15 +160,14 @@ int main(int argc, char const *argv[])
     if(write(fifoclient2serverfd, buffer, sizeof(buffer)) == -1){
         ErrExit("write failed");
     }
-
-    //SE GIOCATORE 1 ATTENDE GIOCATORE 2
-    if(numplayer == 0) {
+    //se gioco contro un altro giocatore
+    if(computer == 0 && numplayer == 0) {
+        //SE GIOCATORE 1 ATTENDE GIOCATORE 2
         printf("In attesa di giocatore 2\n");
         closeFifo(fifoclient2serverfd);
         closeFifo(fifoserver2clientfd);
         pause();
     }
-    // QUANDO SI CONNETTE GIOCATORE DUE STAMPA A VIDEO CHE IL GIOCO INIZIERÀ
     else{
 //        printf("inizio gioco\n");
         closeFifo(fifoclient2serverfd);
