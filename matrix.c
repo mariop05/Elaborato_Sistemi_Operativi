@@ -54,6 +54,7 @@
  {
      int row, column;
      char symbol;
+     int parity = 0;
 
      for(row = 0; row < mymatrix->heigth; row++){
          for (column = 0; column < mymatrix->length - 3; column++) {
@@ -117,6 +118,15 @@
          }
      }
 
+     for (column = 0; column < mymatrix->length; column++)
+         if (mymatrix->table[0][column] != ' ')
+             parity++;
+
+     if (parity == mymatrix->length)
+     {
+         return(2);
+     }
+
      return(0);
  }
  void initializematrix(matrix *mymatrix)
@@ -125,3 +135,4 @@
          for(int column = 0; column < mymatrix->length; column ++)
              mymatrix->table[row][column] = ' ';
  }
+
